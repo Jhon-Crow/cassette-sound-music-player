@@ -12,5 +12,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
-  closeWindow: () => ipcRenderer.send('window-close')
+  closeWindow: () => ipcRenderer.send('window-close'),
+
+  // Tray integration
+  updatePlayState: (isPlaying) => ipcRenderer.send('update-play-state', isPlaying),
+  onTrayTogglePlay: (callback) => ipcRenderer.on('tray-toggle-play', callback),
+  showWindow: () => ipcRenderer.send('show-window')
 });

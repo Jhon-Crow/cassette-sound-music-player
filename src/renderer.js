@@ -721,6 +721,11 @@ async function play() {
 
   await audioState.audioElement.play();
   audioState.isPlaying = true;
+
+  // Update tray icon
+  if (window.electronAPI && window.electronAPI.updatePlayState) {
+    window.electronAPI.updatePlayState(true);
+  }
 }
 
 function stop() {
@@ -729,6 +734,11 @@ function stop() {
     audioState.audioElement.currentTime = 0;
   }
   audioState.isPlaying = false;
+
+  // Update tray icon
+  if (window.electronAPI && window.electronAPI.updatePlayState) {
+    window.electronAPI.updatePlayState(false);
+  }
 }
 
 function pause() {
@@ -736,6 +746,11 @@ function pause() {
     audioState.audioElement.pause();
   }
   audioState.isPlaying = false;
+
+  // Update tray icon
+  if (window.electronAPI && window.electronAPI.updatePlayState) {
+    window.electronAPI.updatePlayState(false);
+  }
 }
 
 async function nextTrack() {
@@ -868,6 +883,13 @@ function setupEventListeners() {
 
   // Setup settings panel event listeners
   setupSettingsEventListeners();
+
+  // Listen for tray toggle play event
+  if (window.electronAPI && window.electronAPI.onTrayTogglePlay) {
+    window.electronAPI.onTrayTogglePlay(async () => {
+      await togglePlayPause();
+    });
+  }
 }
 
 function onContextMenu(event) {
