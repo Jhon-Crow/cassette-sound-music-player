@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS = {
     wowFlutterLevel: 0.5,
     saturationLevel: 0.4,
     lowCutoff: 80,
-    highCutoff: 12000
+    highCutoff: 12000,
+    effectsEnabled: true
   },
   appearance: {
     gradientEnabled: false,
@@ -27,6 +28,10 @@ const DEFAULT_SETTINGS = {
   },
   window: {
     alwaysOnTop: false
+  },
+  playback: {
+    folderPath: null,
+    currentTrackIndex: 0
   }
 };
 
@@ -40,7 +45,8 @@ function loadSettings() {
       return {
         audio: { ...DEFAULT_SETTINGS.audio, ...loaded.audio },
         appearance: { ...DEFAULT_SETTINGS.appearance, ...loaded.appearance },
-        window: { ...DEFAULT_SETTINGS.window, ...loaded.window }
+        window: { ...DEFAULT_SETTINGS.window, ...loaded.window },
+        playback: { ...DEFAULT_SETTINGS.playback, ...loaded.playback }
       };
     }
   } catch (error) {
@@ -193,6 +199,9 @@ function createWindow() {
     event.preventDefault();
     mainWindow.hide();
   });
+
+  // Lock aspect ratio to 5:4 (same as initial window size 500x400)
+  mainWindow.setAspectRatio(5 / 4);
 
   // Remove default menu for cleaner look
   Menu.setApplicationMenu(null);
@@ -404,5 +413,24 @@ ipcMain.on('set-always-on-top', (event, value) => {
   if (currentSettings) {
     currentSettings.window.alwaysOnTop = value;
     saveSettings(currentSettings);
+  }
+});
+
+// Get audio files from a specific folder path (for restoring playback state)
+ipcMain.handle('get-audio-files-from-path', async (event, folderPath) => {
+  try {
+    // Check if the folder still exists
+    if (!fs.existsSync(folderPath)) {
+      return null;
+    }
+
+    const audioFiles = getAudioFilesFromFolder(folderPath);
+    return {
+      folderPath,
+      audioFiles
+    };
+  } catch (error) {
+    console.error('Error getting audio files from path:', error);
+    return null;
   }
 });
