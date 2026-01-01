@@ -722,6 +722,11 @@ async function play() {
   await audioState.audioElement.play();
   audioState.isPlaying = true;
 
+  // Resume tape hiss noise
+  if (audioState.effectNodes && audioState.effectNodes.noiseGain) {
+    audioState.effectNodes.noiseGain.gain.value = 0.015 * CONFIG.audio.tapeHissLevel;
+  }
+
   // Update tray icon
   if (window.electronAPI && window.electronAPI.updatePlayState) {
     window.electronAPI.updatePlayState(true);
@@ -735,6 +740,11 @@ function stop() {
   }
   audioState.isPlaying = false;
 
+  // Stop tape hiss noise
+  if (audioState.effectNodes && audioState.effectNodes.noiseGain) {
+    audioState.effectNodes.noiseGain.gain.value = 0;
+  }
+
   // Update tray icon
   if (window.electronAPI && window.electronAPI.updatePlayState) {
     window.electronAPI.updatePlayState(false);
@@ -746,6 +756,11 @@ function pause() {
     audioState.audioElement.pause();
   }
   audioState.isPlaying = false;
+
+  // Stop tape hiss noise
+  if (audioState.effectNodes && audioState.effectNodes.noiseGain) {
+    audioState.effectNodes.noiseGain.gain.value = 0;
+  }
 
   // Update tray icon
   if (window.electronAPI && window.electronAPI.updatePlayState) {
