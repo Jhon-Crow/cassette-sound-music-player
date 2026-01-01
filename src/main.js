@@ -1,15 +1,105 @@
 // Cassette Music Player - Main Process
 // Electron main process for the standalone cassette music player
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 // Keep a global reference of the window object
 let mainWindow = null;
+let tray = null;
+let isPlaying = false;
 
 // Supported audio formats
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.webm', '.opus', '.wma'];
+
+// Create play/pause tray icons programmatically
+function createTrayIcon(type) {
+  // Create a simple icon using nativeImage from raw RGBA data
+  const iconSize = 16;
+  const buffer = Buffer.alloc(iconSize * iconSize * 4);
+
+  // Fill with transparent background
+  for (let i = 0; i < buffer.length; i += 4) {
+    buffer[i] = 0;     // R
+    buffer[i + 1] = 0; // G
+    buffer[i + 2] = 0; // B
+    buffer[i + 3] = 0; // A (transparent)
+  }
+
+  // Draw icon based on type
+  if (type === 'play') {
+    // Draw play triangle (pointing right)
+    for (let y = 0; y < iconSize; y++) {
+      const rowWidth = Math.floor((y < iconSize / 2) ? (y * 2 / iconSize * 10) : ((iconSize - y) * 2 / iconSize * 10));
+      const startX = 3;
+      for (let x = startX; x < startX + rowWidth && x < iconSize - 2; x++) {
+        const idx = (y * iconSize + x) * 4;
+        buffer[idx] = 124;     // R - green color matching app theme
+        buffer[idx + 1] = 252; // G
+        buffer[idx + 2] = 124; // B
+        buffer[idx + 3] = 255; // A
+      }
+    }
+  } else {
+    // Draw pause bars (two vertical rectangles)
+    for (let y = 2; y < iconSize - 2; y++) {
+      // Left bar
+      for (let x = 3; x < 6; x++) {
+        const idx = (y * iconSize + x) * 4;
+        buffer[idx] = 124;     // R
+        buffer[idx + 1] = 252; // G
+        buffer[idx + 2] = 124; // B
+        buffer[idx + 3] = 255; // A
+      }
+      // Right bar
+      for (let x = 10; x < 13; x++) {
+        const idx = (y * iconSize + x) * 4;
+        buffer[idx] = 124;     // R
+        buffer[idx + 1] = 252; // G
+        buffer[idx + 2] = 124; // B
+        buffer[idx + 3] = 255; // A
+      }
+    }
+  }
+
+  return nativeImage.createFromBuffer(buffer, { width: iconSize, height: iconSize });
+}
+
+// Create tray with current state icon
+function createTray() {
+  const icon = isPlaying ? createTrayIcon('pause') : createTrayIcon('play');
+  tray = new Tray(icon);
+  tray.setToolTip('Cassette Music Player');
+
+  // Single click toggles play/pause
+  tray.on('click', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('tray-toggle-play');
+    }
+  });
+
+  // Double click shows/hides window
+  tray.on('double-click', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }
+  });
+}
+
+// Update tray icon based on play state
+function updateTrayIcon() {
+  if (tray) {
+    const icon = isPlaying ? createTrayIcon('pause') : createTrayIcon('play');
+    tray.setImage(icon);
+    tray.setToolTip(isPlaying ? 'Cassette Music Player - Playing' : 'Cassette Music Player - Paused');
+  }
+}
 
 function createWindow() {
   // Create the browser window with transparent, frameless design
@@ -42,12 +132,21 @@ function createWindow() {
     mainWindow = null;
   });
 
+  // Handle minimize - hide to tray instead
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault();
+    mainWindow.hide();
+  });
+
   // Remove default menu for cleaner look
   Menu.setApplicationMenu(null);
 }
 
 // Create window when Electron is ready
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  createTray();
+});
 
 // Quit when all windows are closed
 app.on('window-all-closed', () => {
@@ -166,4 +265,18 @@ ipcMain.on('window-close', () => {
 // Drag window
 ipcMain.on('window-start-drag', () => {
   // Window dragging is handled in renderer via -webkit-app-region: drag
+});
+
+// Update play state from renderer and update tray icon
+ipcMain.on('update-play-state', (event, playing) => {
+  isPlaying = playing;
+  updateTrayIcon();
+});
+
+// Show window from tray
+ipcMain.on('show-window', () => {
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 });
