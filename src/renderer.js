@@ -370,36 +370,80 @@ function createCassettePlayer() {
   // Cassette window area (front face - visible from side angle)
   const windowWidth = bodyWidth * 0.75;
   const windowHeight = bodyHeight * 0.55;
+  const frameWidth = 0.004;  // Width of the frame border
+  const windowCenterX = -bodyWidth * 0.05;
+  const windowCenterY = bodyHeight * 0.58;
+  const windowZ = bodyDepth / 2 + 0.001;
 
-  // Dark cassette area background
-  const cassetteArea = new THREE.Mesh(
-    new THREE.BoxGeometry(windowWidth + 0.008, windowHeight + 0.008, 0.003),
+  // Dark cassette area as a FRAME (4 pieces) to allow seeing reels through the center
+  // Top frame piece
+  const topFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(windowWidth + 0.008, frameWidth, 0.003),
     darkPanelMaterial
   );
-  cassetteArea.position.set(-bodyWidth * 0.05, bodyHeight * 0.58, bodyDepth / 2 + 0.001);
-  group.add(cassetteArea);
+  topFrame.position.set(windowCenterX, windowCenterY + windowHeight/2 + frameWidth/2, windowZ);
+  group.add(topFrame);
 
-  // Cassette window (transparent, shows reels)
-  const cassetteWindow = new THREE.Mesh(
-    new THREE.BoxGeometry(windowWidth, windowHeight, 0.002),
+  // Bottom frame piece
+  const bottomFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(windowWidth + 0.008, frameWidth, 0.003),
+    darkPanelMaterial
+  );
+  bottomFrame.position.set(windowCenterX, windowCenterY - windowHeight/2 - frameWidth/2, windowZ);
+  group.add(bottomFrame);
+
+  // Left frame piece
+  const leftFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(frameWidth, windowHeight + 0.008, 0.003),
+    darkPanelMaterial
+  );
+  leftFrame.position.set(windowCenterX - windowWidth/2 - frameWidth/2, windowCenterY, windowZ);
+  group.add(leftFrame);
+
+  // Right frame piece
+  const rightFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(frameWidth, windowHeight + 0.008, 0.003),
+    darkPanelMaterial
+  );
+  rightFrame.position.set(windowCenterX + windowWidth/2 + frameWidth/2, windowCenterY, windowZ);
+  group.add(rightFrame);
+
+  // Cassette window glass (semi-transparent to show tape reels behind it)
+  const cassetteWindowGlass = new THREE.Mesh(
+    new THREE.BoxGeometry(windowWidth, windowHeight, 0.001),
     new THREE.MeshStandardMaterial({
-      color: 0x4a4a5a,
-      roughness: 0.1,
-      metalness: 0.0,
+      color: 0x88aacc,  // Slight blue-ish tint for glass effect
+      roughness: 0.05,
+      metalness: 0.1,
       transparent: true,
-      opacity: 0.4
+      opacity: 0.25  // Semi-transparent glass
     })
   );
-  cassetteWindow.position.set(-bodyWidth * 0.05, bodyHeight * 0.58, bodyDepth / 2 + 0.003);
-  group.add(cassetteWindow);
+  cassetteWindowGlass.position.set(windowCenterX, windowCenterY, windowZ + 0.002);  // In front of frame
+  group.add(cassetteWindowGlass);
 
   // Cassette reels group
   const reelGroup = new THREE.Group();
   reelGroup.name = 'reels';
-  reelGroup.position.set(-bodyWidth * 0.05, bodyHeight * 0.58, bodyDepth / 2 + 0.005);
+  // Position reels just behind the window frame (at windowZ - 0.002)
+  // This keeps them visible through the transparent window but behind the frame
+  reelGroup.position.set(windowCenterX, windowCenterY, windowZ - 0.002);
 
-  const reelRadius = 0.018;
-  const reelSpacing = 0.028;
+  // Dark background behind the reels (inside cassette interior)
+  const reelBackgroundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1a1a1a,  // Very dark gray/almost black
+    roughness: 0.9,
+    metalness: 0.0
+  });
+  const reelBackground = new THREE.Mesh(
+    new THREE.PlaneGeometry(windowWidth * 0.95, windowHeight * 0.95),
+    reelBackgroundMaterial
+  );
+  reelBackground.position.set(0, 0, -0.005);  // Behind the reels
+  reelGroup.add(reelBackground);
+
+  const reelRadius = 0.015;  // Slightly smaller reel for better fit
+  const reelSpacing = 0.022;  // Closer together to fit within window
   const reelGeometry = new THREE.CylinderGeometry(reelRadius, reelRadius, 0.004, 24);
   const reelMaterial = new THREE.MeshStandardMaterial({
     color: 0x2d2d3d,
@@ -407,26 +451,65 @@ function createCassettePlayer() {
     metalness: 0.3
   });
 
-  // Left reel (supply)
+  // Tape material (brown tape color)
+  const tapeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3a2a1a,
+    roughness: 0.7,
+    metalness: 0.1,
+    side: THREE.DoubleSide  // Visible from both sides for flat ring geometry
+  });
+
+  // Constants for tape ring sizing
+  // Hub radius reduced by 2.5x per user feedback (was 0.006)
+  const hubRadius = 0.0024;  // Inner hub radius (reduced by 2.5x)
+  // Max tape radius calculated to stay within window bounds
+  // Window half-width = 0.04125, reel offset = 0.022, so max radius = 0.04125 - 0.022 + 0.0055 = 0.01925
+  // Use 0.018 for safety margin
+  const maxTapeRadius = 0.018;  // Maximum outer radius of tape (constrained to window)
+
+  // Left reel (take-up) - starts with minimal tape, fills during playback
   const leftReelGroup = new THREE.Group();
   leftReelGroup.name = 'leftReel';
   leftReelGroup.position.set(-reelSpacing, 0, 0);
   const leftReelMesh = new THREE.Mesh(reelGeometry, reelMaterial);
   leftReelMesh.rotation.x = Math.PI / 2;
   leftReelGroup.add(leftReelMesh);
+
+  // Left tape ring (take-up reel tape) - starts minimal
+  const leftTapeRing = new THREE.Mesh(
+    new THREE.RingGeometry(hubRadius, hubRadius + 0.002, 32),
+    tapeMaterial
+  );
+  leftTapeRing.name = 'tapeRing';
+  leftTapeRing.position.z = 0.001;  // Behind the hub so hub is always visible
+  leftReelGroup.add(leftTapeRing);
   reelGroup.add(leftReelGroup);
 
-  // Right reel (take-up)
+  // Right reel (supply) - starts with full tape, empties during playback
   const rightReelGroup = new THREE.Group();
   rightReelGroup.name = 'rightReel';
   rightReelGroup.position.set(reelSpacing, 0, 0);
   const rightReelMesh = new THREE.Mesh(reelGeometry, reelMaterial);
   rightReelMesh.rotation.x = Math.PI / 2;
   rightReelGroup.add(rightReelMesh);
+
+  // Right tape ring (supply reel tape) - starts full
+  const rightTapeRing = new THREE.Mesh(
+    new THREE.RingGeometry(hubRadius, maxTapeRadius, 32),
+    tapeMaterial
+  );
+  rightTapeRing.name = 'tapeRing';
+  rightTapeRing.position.z = 0.001;  // Behind the hub so hub is always visible
+  rightReelGroup.add(rightTapeRing);
   reelGroup.add(rightReelGroup);
 
+  // Store tape ring constants for animation
+  reelGroup.userData.hubRadius = hubRadius;
+  reelGroup.userData.maxTapeRadius = maxTapeRadius;
+
   // Reel center hubs (white with hexagonal shape)
-  const hubGeometry = new THREE.CylinderGeometry(0.006, 0.006, 0.006, 6);
+  // Hub size reduced by 2.5x to match hubRadius (was 0.006)
+  const hubGeometry = new THREE.CylinderGeometry(hubRadius, hubRadius, 0.003, 6);
   const hubMaterial = new THREE.MeshStandardMaterial({
     color: 0xf5f5f5,
     roughness: 0.3
@@ -434,12 +517,12 @@ function createCassettePlayer() {
 
   const leftHub = new THREE.Mesh(hubGeometry, hubMaterial);
   leftHub.rotation.x = Math.PI / 2;
-  leftHub.position.set(-reelSpacing, 0, 0.002);
+  leftHub.position.set(-reelSpacing, 0, 0.003);  // In front of tape ring
   reelGroup.add(leftHub);
 
   const rightHub = new THREE.Mesh(hubGeometry, hubMaterial);
   rightHub.rotation.x = Math.PI / 2;
-  rightHub.position.set(reelSpacing, 0, 0.002);
+  rightHub.position.set(reelSpacing, 0, 0.003);  // In front of tape ring
   reelGroup.add(rightHub);
 
   // Tape path between reels
@@ -883,8 +966,44 @@ async function loadTrack(index) {
   audioState.audioElement.src = 'file://' + track.path;
   await audioState.audioElement.load();
 
+  // Reset tape rings to initial state (full left, empty right)
+  resetTapeRings();
+
   // Save current track index for restoration on restart
   saveCurrentSettings();
+}
+
+// Reset tape rings to initial state (left empty, right full)
+function resetTapeRings() {
+  if (!cassettePlayer || !cassettePlayer.userData.reelGroup) return;
+
+  const reelGroup = cassettePlayer.userData.reelGroup;
+  const hubRadius = reelGroup.userData.hubRadius;
+  const maxTapeRadius = reelGroup.userData.maxTapeRadius;
+
+  const leftReel = reelGroup.getObjectByName('leftReel');
+  const rightReel = reelGroup.getObjectByName('rightReel');
+
+  if (!leftReel || !rightReel) return;
+
+  const leftTapeRing = leftReel.getObjectByName('tapeRing');
+  const rightTapeRing = rightReel.getObjectByName('tapeRing');
+
+  if (!leftTapeRing || !rightTapeRing) return;
+
+  const minTapeOffset = 0.002;
+
+  // Reset left reel to minimal tape (take-up, empty at start)
+  if (leftTapeRing.geometry) {
+    leftTapeRing.geometry.dispose();
+  }
+  leftTapeRing.geometry = new THREE.RingGeometry(hubRadius, hubRadius + minTapeOffset, 32);
+
+  // Reset right reel to full tape (supply, full at start)
+  if (rightTapeRing.geometry) {
+    rightTapeRing.geometry.dispose();
+  }
+  rightTapeRing.geometry = new THREE.RingGeometry(hubRadius, maxTapeRadius, 32);
 }
 
 async function play() {
@@ -1339,9 +1458,66 @@ function animate() {
 
     if (leftReel) leftReel.rotation.z = reelRotation;
     if (rightReel) rightReel.rotation.z = reelRotation * 1.1; // Slightly faster
+
+    // Update tape ring sizes based on playback progress
+    updateTapeRings();
   }
 
   renderer.render(scene, camera);
+}
+
+// Update tape ring sizes based on current playback position
+function updateTapeRings() {
+  if (!audioState.audioElement || !cassettePlayer.userData.reelGroup) return;
+
+  const duration = audioState.audioElement.duration;
+  const currentTime = audioState.audioElement.currentTime;
+
+  // If duration is not available yet, use default state
+  if (!duration || isNaN(duration) || !isFinite(duration)) return;
+
+  const progress = currentTime / duration;  // 0 to 1
+
+  const reelGroup = cassettePlayer.userData.reelGroup;
+  const hubRadius = reelGroup.userData.hubRadius;
+  const maxTapeRadius = reelGroup.userData.maxTapeRadius;
+
+  const leftReel = reelGroup.getObjectByName('leftReel');
+  const rightReel = reelGroup.getObjectByName('rightReel');
+
+  if (!leftReel || !rightReel) return;
+
+  const leftTapeRing = leftReel.getObjectByName('tapeRing');
+  const rightTapeRing = rightReel.getObjectByName('tapeRing');
+
+  if (!leftTapeRing || !rightTapeRing) return;
+
+  // Calculate tape radii based on progress
+  // Left reel (take-up): starts minimal, ends full
+  // Right reel (supply): starts full, ends minimal
+  // Use square root for more realistic tape distribution (area-based)
+  const tapeRange = maxTapeRadius - hubRadius;
+  const minTapeOffset = 0.002;  // Minimum visible tape
+
+  // Left reel: increases from minimal to full (take-up)
+  const leftTapeAmount = progress;  // 0 at start, 1 at end
+  const leftOuterRadius = hubRadius + minTapeOffset + (tapeRange - minTapeOffset) * Math.sqrt(leftTapeAmount);
+
+  // Right reel: decreases from full to minimal (supply)
+  const rightTapeAmount = 1 - progress;  // 1 at start, 0 at end
+  const rightOuterRadius = hubRadius + minTapeOffset + (tapeRange - minTapeOffset) * Math.sqrt(rightTapeAmount);
+
+  // Update geometry for left tape ring
+  if (leftTapeRing.geometry) {
+    leftTapeRing.geometry.dispose();
+  }
+  leftTapeRing.geometry = new THREE.RingGeometry(hubRadius, leftOuterRadius, 32);
+
+  // Update geometry for right tape ring
+  if (rightTapeRing.geometry) {
+    rightTapeRing.geometry.dispose();
+  }
+  rightTapeRing.geometry = new THREE.RingGeometry(hubRadius, rightOuterRadius, 32);
 }
 
 // ============================================================================
