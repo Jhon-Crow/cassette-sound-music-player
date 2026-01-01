@@ -1212,6 +1212,41 @@ function setupSettingsEventListeners() {
     await openFiles();
     closeSettings();
   });
+
+  // Add scroll wheel support for all sliders
+  setupSliderScrollSupport();
+}
+
+// Add scroll wheel support for sliders
+function setupSliderScrollSupport() {
+  const sliders = document.querySelectorAll('.control-slider');
+
+  sliders.forEach(slider => {
+    slider.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const min = parseFloat(slider.min);
+      const max = parseFloat(slider.max);
+      const currentValue = parseFloat(slider.value);
+
+      // Calculate step based on slider range (1% of range for smoother control)
+      const step = (max - min) / 100;
+
+      // Scroll up increases value, scroll down decreases
+      const direction = e.deltaY > 0 ? -1 : 1;
+      let newValue = currentValue + (direction * step * 5); // 5 steps per scroll
+
+      // Clamp value within range
+      newValue = Math.max(min, Math.min(max, newValue));
+
+      // Update slider value
+      slider.value = newValue;
+
+      // Trigger input event to update the associated setting
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    }, { passive: false });
+  });
 }
 
 // ============================================================================
