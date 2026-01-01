@@ -379,7 +379,7 @@ function createCassettePlayer() {
   cassetteArea.position.set(-bodyWidth * 0.05, bodyHeight * 0.58, bodyDepth / 2 + 0.001);
   group.add(cassetteArea);
 
-  // Cassette window (transparent, shows reels)
+  // Cassette window (fully transparent to show tape reels behind it)
   const cassetteWindow = new THREE.Mesh(
     new THREE.BoxGeometry(windowWidth, windowHeight, 0.002),
     new THREE.MeshStandardMaterial({
@@ -387,7 +387,7 @@ function createCassettePlayer() {
       roughness: 0.1,
       metalness: 0.0,
       transparent: true,
-      opacity: 0.4
+      opacity: 0  // Fully transparent to show tape reels
     })
   );
   cassetteWindow.position.set(-bodyWidth * 0.05, bodyHeight * 0.58, bodyDepth / 2 + 0.003);
