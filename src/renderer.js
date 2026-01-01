@@ -419,7 +419,7 @@ function createCassettePlayer() {
   const hubRadius = 0.006;  // Inner hub radius
   const maxTapeRadius = reelRadius;  // Maximum outer radius of tape
 
-  // Left reel (supply) - starts with full tape
+  // Left reel (take-up) - starts with minimal tape, fills during playback
   const leftReelGroup = new THREE.Group();
   leftReelGroup.name = 'leftReel';
   leftReelGroup.position.set(-reelSpacing, 0, 0);
@@ -427,9 +427,9 @@ function createCassettePlayer() {
   leftReelMesh.rotation.x = Math.PI / 2;
   leftReelGroup.add(leftReelMesh);
 
-  // Left tape ring (supply reel tape)
+  // Left tape ring (take-up reel tape) - starts minimal
   const leftTapeRing = new THREE.Mesh(
-    new THREE.RingGeometry(hubRadius, maxTapeRadius, 32),
+    new THREE.RingGeometry(hubRadius, hubRadius + 0.002, 32),
     tapeMaterial
   );
   leftTapeRing.name = 'tapeRing';
@@ -437,7 +437,7 @@ function createCassettePlayer() {
   leftReelGroup.add(leftTapeRing);
   reelGroup.add(leftReelGroup);
 
-  // Right reel (take-up) - starts with minimal tape
+  // Right reel (supply) - starts with full tape, empties during playback
   const rightReelGroup = new THREE.Group();
   rightReelGroup.name = 'rightReel';
   rightReelGroup.position.set(reelSpacing, 0, 0);
@@ -445,9 +445,9 @@ function createCassettePlayer() {
   rightReelMesh.rotation.x = Math.PI / 2;
   rightReelGroup.add(rightReelMesh);
 
-  // Right tape ring (take-up reel tape)
+  // Right tape ring (supply reel tape) - starts full
   const rightTapeRing = new THREE.Mesh(
-    new THREE.RingGeometry(hubRadius, hubRadius + 0.002, 32),
+    new THREE.RingGeometry(hubRadius, maxTapeRadius, 32),
     tapeMaterial
   );
   rightTapeRing.name = 'tapeRing';
@@ -924,7 +924,7 @@ async function loadTrack(index) {
   saveCurrentSettings();
 }
 
-// Reset tape rings to initial state (left full, right empty)
+// Reset tape rings to initial state (left empty, right full)
 function resetTapeRings() {
   if (!cassettePlayer || !cassettePlayer.userData.reelGroup) return;
 
@@ -944,17 +944,17 @@ function resetTapeRings() {
 
   const minTapeOffset = 0.002;
 
-  // Reset left reel to full tape
+  // Reset left reel to minimal tape (take-up, empty at start)
   if (leftTapeRing.geometry) {
     leftTapeRing.geometry.dispose();
   }
-  leftTapeRing.geometry = new THREE.RingGeometry(hubRadius, maxTapeRadius, 32);
+  leftTapeRing.geometry = new THREE.RingGeometry(hubRadius, hubRadius + minTapeOffset, 32);
 
-  // Reset right reel to minimal tape
+  // Reset right reel to full tape (supply, full at start)
   if (rightTapeRing.geometry) {
     rightTapeRing.geometry.dispose();
   }
-  rightTapeRing.geometry = new THREE.RingGeometry(hubRadius, hubRadius + minTapeOffset, 32);
+  rightTapeRing.geometry = new THREE.RingGeometry(hubRadius, maxTapeRadius, 32);
 }
 
 async function play() {
@@ -1444,18 +1444,18 @@ function updateTapeRings() {
   if (!leftTapeRing || !rightTapeRing) return;
 
   // Calculate tape radii based on progress
-  // Left reel (supply): starts full, ends with minimal tape
-  // Right reel (take-up): starts minimal, ends full
+  // Left reel (take-up): starts minimal, ends full
+  // Right reel (supply): starts full, ends minimal
   // Use square root for more realistic tape distribution (area-based)
   const tapeRange = maxTapeRadius - hubRadius;
   const minTapeOffset = 0.002;  // Minimum visible tape
 
-  // Left reel: decreases from full to minimal
-  const leftTapeAmount = 1 - progress;  // 1 at start, 0 at end
+  // Left reel: increases from minimal to full (take-up)
+  const leftTapeAmount = progress;  // 0 at start, 1 at end
   const leftOuterRadius = hubRadius + minTapeOffset + (tapeRange - minTapeOffset) * Math.sqrt(leftTapeAmount);
 
-  // Right reel: increases from minimal to full
-  const rightTapeAmount = progress;  // 0 at start, 1 at end
+  // Right reel: decreases from full to minimal (supply)
+  const rightTapeAmount = 1 - progress;  // 1 at start, 0 at end
   const rightOuterRadius = hubRadius + minTapeOffset + (tapeRange - minTapeOffset) * Math.sqrt(rightTapeAmount);
 
   // Update geometry for left tape ring

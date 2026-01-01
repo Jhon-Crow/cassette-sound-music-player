@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tape Animation Test</title>
+    <style>
+        body {
+            margin: 0;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        #container {
+            width: 800px;
+            height: 600px;
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        #progress-slider {
+            width: 300px;
+        }
+        .info {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Tape Animation Test</h2>
+    <div id="container"></div>
+    <div id="controls">
+        <label>Progress: <input type="range" id="progress-slider" min="0" max="100" value="0"></label>
+        <span id="progress-value">0%</span>
+        <button id="play-btn">Auto Play</button>
+    </div>
+    <div class="info">
+        <p>Left Reel (Take-up): <span id="left-info">-</span></p>
+        <p>Right Reel (Supply): <span id="right-info">-</span></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script>
+        // Setup Three.js
+        const container = document.getElementById('container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+
+        const camera = new THREE.PerspectiveCamera(45, 800/600, 0.1, 1000);
+        camera.position.set(0, 0.05, 0.25);
+        camera.lookAt(0, 0.04, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(800, 600);
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambient = new THREE.AmbientLight(0x404060, 0.6);
+        scene.add(ambient);
+        const directional = new THREE.DirectionalLight(0xffffff, 0.8);
+        directional.position.set(5, 10, 7);
+        scene.add(directional);
+
+        // Create reels
+        const reelGroup = new THREE.Group();
+        const reelRadius = 0.018;
+        const reelSpacing = 0.028;
+
+        // Reel material
+        const reelMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d2d3d,
+            roughness: 0.4,
+            metalness: 0.3
+        });
+
+        // Tape material - DoubleSide for visibility
+        const tapeMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3a2a1a,
+            roughness: 0.7,
+            metalness: 0.1,
+            side: THREE.DoubleSide
+        });
+
+        // Constants
+        const hubRadius = 0.006;
+        const maxTapeRadius = reelRadius;
+        const minTapeOffset = 0.002;
+
+        // Left reel (supply)
+        const leftReelGroup = new THREE.Group();
+        leftReelGroup.name = 'leftReel';
+        leftReelGroup.position.set(-reelSpacing, 0, 0);
+
+        const leftReelMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(reelRadius, reelRadius, 0.004, 24),
+            reelMaterial
+        );
+        leftReelMesh.rotation.x = Math.PI / 2;
+        leftReelGroup.add(leftReelMesh);
+
+        // Left tape ring - initially minimal (take-up, empty at start)
+        const leftTapeRing = new THREE.Mesh(
+            new THREE.RingGeometry(hubRadius, hubRadius + minTapeOffset, 32),
+            tapeMaterial
+        );
+        leftTapeRing.name = 'tapeRing';
+        leftTapeRing.position.z = 0.003;
+        leftReelGroup.add(leftTapeRing);
+
+        // Left hub
+        const hubMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 });
+        const leftHub = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.006, 0.006, 0.006, 6),
+            hubMaterial
+        );
+        leftHub.rotation.x = Math.PI / 2;
+        leftHub.position.z = 0.004;
+        leftReelGroup.add(leftHub);
+
+        reelGroup.add(leftReelGroup);
+
+        // Right reel (take-up)
+        const rightReelGroup = new THREE.Group();
+        rightReelGroup.name = 'rightReel';
+        rightReelGroup.position.set(reelSpacing, 0, 0);
+
+        const rightReelMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(reelRadius, reelRadius, 0.004, 24),
+            reelMaterial
+        );
+        rightReelMesh.rotation.x = Math.PI / 2;
+        rightReelGroup.add(rightReelMesh);
+
+        // Right tape ring - initially full (supply, full at start)
+        const rightTapeRing = new THREE.Mesh(
+            new THREE.RingGeometry(hubRadius, maxTapeRadius, 32),
+            tapeMaterial
+        );
+        rightTapeRing.name = 'tapeRing';
+        rightTapeRing.position.z = 0.003;
+        rightReelGroup.add(rightTapeRing);
+
+        // Right hub
+        const rightHub = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.006, 0.006, 0.006, 6),
+            hubMaterial
+        );
+        rightHub.rotation.x = Math.PI / 2;
+        rightHub.position.z = 0.004;
+        rightReelGroup.add(rightHub);
+
+        reelGroup.add(rightReelGroup);
+
+        // Tape path between reels
+        const tape = new THREE.Mesh(
+            new THREE.BoxGeometry(reelSpacing * 1.6, 0.003, 0.001),
+            new THREE.MeshStandardMaterial({ color: 0x3a2a1a })
+        );
+        tape.position.set(0, -reelRadius * 0.7, 0.002);
+        reelGroup.add(tape);
+
+        reelGroup.position.y = 0.04;
+        scene.add(reelGroup);
+
+        // Store references
+        reelGroup.userData = {
+            hubRadius: hubRadius,
+            maxTapeRadius: maxTapeRadius
+        };
+
+        // Update function
+        function updateTapeRings(progress) {
+            const tapeRange = maxTapeRadius - hubRadius;
+
+            // REVERSED direction per user feedback:
+            // Left reel (take-up): starts MINIMAL, ends FULL
+            // Right reel (supply): starts FULL, ends MINIMAL
+            const leftTapeAmount = progress;  // 0 at start, 1 at end
+            const leftOuterRadius = hubRadius + minTapeOffset + (tapeRange - minTapeOffset) * Math.sqrt(leftTapeAmount);
+
+            const rightTapeAmount = 1 - progress;  // 1 at start, 0 at end
+            const rightOuterRadius = hubRadius + minTapeOffset + (tapeRange - minTapeOffset) * Math.sqrt(rightTapeAmount);
+
+            // Update left tape ring
+            leftTapeRing.geometry.dispose();
+            leftTapeRing.geometry = new THREE.RingGeometry(hubRadius, leftOuterRadius, 32);
+
+            // Update right tape ring
+            rightTapeRing.geometry.dispose();
+            rightTapeRing.geometry = new THREE.RingGeometry(hubRadius, rightOuterRadius, 32);
+
+            // Update info display
+            document.getElementById('left-info').textContent =
+                `Outer R: ${leftOuterRadius.toFixed(4)} (${(leftTapeAmount * 100).toFixed(0)}% full)`;
+            document.getElementById('right-info').textContent =
+                `Outer R: ${rightOuterRadius.toFixed(4)} (${(rightTapeAmount * 100).toFixed(0)}% full)`;
+        }
+
+        // Controls
+        const slider = document.getElementById('progress-slider');
+        const progressValue = document.getElementById('progress-value');
+        let autoPlay = false;
+        let rotation = 0;
+
+        slider.addEventListener('input', (e) => {
+            const progress = e.target.value / 100;
+            progressValue.textContent = e.target.value + '%';
+            updateTapeRings(progress);
+        });
+
+        document.getElementById('play-btn').addEventListener('click', () => {
+            autoPlay = !autoPlay;
+            document.getElementById('play-btn').textContent = autoPlay ? 'Stop' : 'Auto Play';
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (autoPlay) {
+                let current = parseInt(slider.value);
+                current = (current + 1) % 101;
+                slider.value = current;
+                progressValue.textContent = current + '%';
+                updateTapeRings(current / 100);
+            }
+
+            // Rotate reels
+            rotation += 0.01;
+            leftReelGroup.rotation.z = rotation;
+            rightReelGroup.rotation.z = rotation * 1.1;
+
+            renderer.render(scene, camera);
+        }
+
+        // Initialize
+        updateTapeRings(0);
+        animate();
+    </script>
+</body>
+</html>
